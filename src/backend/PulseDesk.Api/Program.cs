@@ -3,14 +3,14 @@ using PulseDesk.Infrastructure.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Cadena de conexión y DbContext
+// 1. Conexión SQL Server
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
     ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(connectionString));
 
-// 2. Habilitar CORS para Angular (puerto 4200 por defecto)
+// 2. CORS para Angular
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AngularApp", policy =>
@@ -26,6 +26,23 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
+
+// 3. Ejecutar Migraciones y Seeding automático al iniciar
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var dbContext = services.GetRequiredService<ApplicationDbContext>();
+        await dbContext.Database.MigrateAsync();
+        await DbInitializer.SeedAsync(dbContext);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "Ocurrió un error al inicializar o poblar la base de datos.");
+    }
+}
 
 if (app.Environment.IsDevelopment())
 {
